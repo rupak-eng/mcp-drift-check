@@ -63,4 +63,5 @@ jobs:
 
       - name: Show scanner exit code
         if: always()
-        run: echo "Scanner exit code: ${{ steps.scan.outputs.exit_code }} (1 means at least one HIGH finding; report was still generated.)"
+        run: |
+          echo "Scanner exit code: ${{ steps.scan.outputs.exit_code }} (1 means at least one HIGH finding; report was still generated.)"
