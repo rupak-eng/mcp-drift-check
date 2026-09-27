@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-drift-check"
-version = "0.2.6"
-description = "Zero-execution MCP dependency drift preflight for AI agent configurations"
+version = "0.3.0"
+description = "Zero-execution MCP dependency drift preflight plus Orynval repository security preflight"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
@@ -19,6 +19,7 @@ classifiers = [
 
 [project.scripts]
 mcp-drift-check = "mcp_drift_check.cli:main"
+orynval-security-check = "orynval_security_check.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
