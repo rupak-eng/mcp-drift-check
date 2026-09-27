@@ -1,0 +1,66 @@
+name: Orynval Security Check
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: Public GitHub repository in owner/repo form
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Orynval scanner
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+
+      - name: Install scanner
+        run: python -m pip install .
+
+      - name: Validate target
+        env:
+          TARGET_REPO: ${{ inputs.target_repo }}
+        run: |
+          python - <<'PY'
+          import os, re, sys
+          target = os.environ['TARGET_REPO']
+          if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', target):
+              sys.exit('target_repo must be owner/repo')
+          PY
+
+      - name: Run zero-execution security preflight
+        id: scan
+        env:
+          TARGET_REPO: ${{ inputs.target_repo }}
+        shell: bash
+        run: |
+          set +e
+          orynval-security-check "$TARGET_REPO" --output orynval-security-report.md
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Add report to job summary
+        if: always()
+        run: cat orynval-security-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: orynval-security-report
+          path: orynval-security-report.md
+          if-no-files-found: error
+
+      - name: Show scanner exit code
+        if: always()
+        run: echo "Scanner exit code: ${{ steps.scan.outputs.exit_code }} (1 means at least one HIGH finding; report was still generated.)"
