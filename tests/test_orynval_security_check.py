@@ -3,7 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from orynval_security_check.cli import render_markdown, scan_repository
+from orynval_security_check.cli import scan_repository
+from orynval_security_check.runtime import render_markdown
 
 
 class OrynvalSecurityCheckTests(unittest.TestCase):
@@ -53,6 +54,11 @@ class OrynvalSecurityCheckTests(unittest.TestCase):
             self.assertIn("Potential github-token", report)
             self.assertNotIn(secret, report)
             self.assertIn("orynval.com/security-triage", report)
+
+    def test_clean_report_still_has_private_review_path(self):
+        report = render_markdown("demo/clean", [])
+        self.assertIn("No findings in the checks currently implemented.", report)
+        self.assertIn("orynval.com/security-triage", report)
 
 
 if __name__ == "__main__":
