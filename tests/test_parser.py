@@ -34,7 +34,7 @@ class ParserTests(unittest.TestCase):
     def test_unknown_command_review(self):
         with TemporaryDirectory() as d:
             p=Path(d)/"mcp.json"
-            p.write_text('{"mcpServers":{"x":{"command":"uvx","args":["server"]}}}')
+            p.write_text('{"mcpServers":{"x":{"command":"dotnet","args":["server.dll"]}}}')
             self.assertEqual(parse_config(p)[0].classification, "REVIEW")
 
     def test_local_executable_review(self):
@@ -105,5 +105,62 @@ class ParserTests(unittest.TestCase):
             p.write_text('{"mcpServers":{"x":{"command":"npm","args":["exec","--","@scope/pkg@2.0.0"]}}}')
             f=parse_config(p)[0]
             self.assertEqual((f.package, f.declared_version, f.classification), ("@scope/pkg","2.0.0","SAFE"))
+
+
+    def test_uvx_bare_is_high(self):
+        with TemporaryDirectory() as d:
+            p=Path(d)/"mcp.json"
+            p.write_text('{"mcpServers":{"x":{"command":"uvx","args":["mcp-server-fetch"]}}}')
+            f=parse_config(p)[0]
+            self.assertEqual((f.package, f.declared_version, f.classification), ("mcp-server-fetch", None, "HIGH"))
+
+    def test_uvx_pinned_is_safe(self):
+        with TemporaryDirectory() as d:
+            p=Path(d)/"mcp.json"
+            p.write_text('{"mcpServers":{"x":{"command":"uvx","args":["mcp-server-fetch==1.2.3"]}}}')
+            f=parse_config(p)[0]
+            self.assertEqual((f.package, f.declared_version, f.classification), ("mcp-server-fetch", "==1.2.3", "SAFE"))
+
+    def test_uvx_from_flag_selects_package(self):
+        with TemporaryDirectory() as d:
+            p=Path(d)/"mcp.json"
+            p.write_text('{"mcpServers":{"x":{"command":"uvx","args":["--from","mcp-server-fetch==1.0.0","mcp-server-fetch"]}}}')
+            f=parse_config(p)[0]
+            self.assertEqual((f.package, f.declared_version, f.classification), ("mcp-server-fetch", "==1.0.0", "SAFE"))
+
+    def test_uvx_from_equals_form(self):
+        with TemporaryDirectory() as d:
+            p=Path(d)/"mcp.json"
+            p.write_text('{"mcpServers":{"x":{"command":"uvx","args":["--from=mcp-server-fetch>=2.0","mcp-server-fetch"]}}}')
+            f=parse_config(p)[0]
+            self.assertEqual((f.package, f.classification), ("mcp-server-fetch", "MEDIUM"))
+
+    def test_uvx_flag_values_are_not_packages(self):
+        with TemporaryDirectory() as d:
+            p=Path(d)/"mcp.json"
+            p.write_text('{"mcpServers":{"x":{"command":"uvx","args":["--with","pydantic","-p","3.12","mcp-server-fetch"]}}}')
+            f=parse_config(p)[0]
+            self.assertEqual((f.package, f.classification), ("mcp-server-fetch", "HIGH"))
+
+    def test_uvx_local_path_is_review(self):
+        with TemporaryDirectory() as d:
+            p=Path(d)/"mcp.json"
+            p.write_text('{"mcpServers":{"x":{"command":"uvx","args":["./local-server"]}}}')
+            f=parse_config(p)[0]
+            self.assertEqual(f.classification, "REVIEW")
+            self.assertIn("local path", f.reason)
+
+    def test_uvx_git_url_is_review(self):
+        with TemporaryDirectory() as d:
+            p=Path(d)/"mcp.json"
+            p.write_text('{"mcpServers":{"x":{"command":"uvx","args":["--from","git+https://github.com/org/srv","srv"]}}}')
+            f=parse_config(p)[0]
+            self.assertEqual(f.classification, "REVIEW")
+
+    def test_uvx_no_args_is_review(self):
+        with TemporaryDirectory() as d:
+            p=Path(d)/"mcp.json"
+            p.write_text('{"mcpServers":{"x":{"command":"uvx","args":[]}}}')
+            self.assertEqual(parse_config(p)[0].classification, "REVIEW")
 
 if __name__ == "__main__": unittest.main()

@@ -120,12 +120,13 @@ That issue is an example of the configuration-review problem this tool detects. 
 
 ## What it checks
 
-Current package-runner coverage includes `npx`, `npm exec` / `npm x`, `bunx` / `bun x`, `pnpm dlx`, and `yarn dlx`:
+Current package-runner coverage includes `npx`, `npm exec` / `npm x`, `bunx` / `bun x`, `pnpm dlx`, `yarn dlx`, and `uvx`:
 
 - exact versions such as `package@1.2.3` → `SAFE`
 - bare packages such as `package` → `HIGH`
 - explicit `package@latest` → `HIGH`
 - version ranges such as `package@^1.2.0` → `MEDIUM`
+- `uvx` references use PEP 508 selectors: `pkg==1.2.3` → `SAFE`, `pkg>=1.0` → `MEDIUM`, bare `pkg` → `HIGH`; URLs, local paths and wheels → `REVIEW`
 - local or unknown executables → `REVIEW`
 - `-y` / `--yes` is reported as context; it is not treated as a vulnerability by itself
 

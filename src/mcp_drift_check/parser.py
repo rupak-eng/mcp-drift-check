@@ -3,7 +3,7 @@ import json
 import re
 import shlex
 from pathlib import Path
-from .classifier import classify_package, classify_non_package
+from .classifier import classify_package, classify_non_package, classify_uvx_spec
 from .models import Finding
 
 def _walk_mcp_servers(obj):
@@ -129,7 +129,64 @@ def _extract_package_spec(parts):
     if exe in ("pnpm", "pnpm.cmd", "yarn", "yarn.cmd") and rest and rest[0] == "dlx":
         return _first_positional(rest[1:]), False
 
+    if exe in ("uvx", "uvx.exe"):
+        return _extract_uvx_spec(rest), False
+
     return None, False
+
+
+# Flags whose values must not be mistaken for the uvx package spec.
+_UVX_VALUE_FLAGS = {
+    "--from", "--with", "--python", "-p",
+    "--index-url", "--extra-index-url", "--find-links",
+    "--default-index", "--index", "--cache-dir", "--project",
+}
+# A bare version number is far more likely to be a flag value (e.g. `-p 3.12`)
+# than a package name; skip it instead of misclassifying it as a package.
+_UVX_VERSION_LIKE = re.compile(r"^\d+(\.\d+)*$")
+
+
+def _extract_uvx_spec(rest):
+    """Return the package spec for a ``uvx`` invocation, or None.
+
+    This is text parsing only; nothing is executed. ``--from`` selects the
+    package and its value is the spec. Other value-taking flags are skipped
+    so their values are not mistaken for the package. The first remaining
+    positional argument is the package spec.
+    """
+    i, n = 0, len(rest)
+    while i < n:
+        tok = rest[i]
+        if tok == "--from":
+            return rest[i + 1] if i + 1 < n else None
+        if tok.startswith("--from="):
+            return tok.split("=", 1)[1] or None
+        if tok in _UVX_VALUE_FLAGS:
+            i += 2
+            continue
+        if tok.startswith("--"):
+            # --flag=value form, a boolean flag, or the arg separator: none of
+            # these is the package, and the separator ends uvx's own args.
+            if tok == "--":
+                return None
+            i += 1
+            continue
+        if tok.startswith("-") and tok != "-":
+            i += 1
+            continue
+        if _UVX_VERSION_LIKE.match(tok):
+            i += 1
+            continue
+        return tok
+    return None
+
+
+def _classify_spec(parts, spec, auto_yes):
+    """Classify an extracted spec with the runner-appropriate classifier."""
+    exe = Path(parts[0]).name.lower() if parts else ""
+    if exe in ("uvx", "uvx.exe"):
+        return classify_uvx_spec(spec)
+    return classify_package(spec, auto_yes)
 
 
 # Backward-compatible private alias used by the 2026-09-25 npm/npx census script.
@@ -157,7 +214,7 @@ def parse_config(path: str | Path, client: str = "manual"):
                 package=version=None
                 level, reason, rec = "REVIEW", parse_error, "Review the command syntax manually; no command was executed."
             elif spec:
-                package, version, level, reason, rec = classify_package(spec, auto_yes)
+                package, version, level, reason, rec = _classify_spec(parts, spec, auto_yes)
             elif parts:
                 package=version=None
                 level, reason, rec = classify_non_package(parts[0])
